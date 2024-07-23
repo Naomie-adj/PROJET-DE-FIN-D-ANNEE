@@ -1,0 +1,297 @@
+import pygame
+from pygame.locals import *
+import random
+
+pygame.init()
+
+# creation de la fenêtre de jeu
+width = 400
+height = 400
+scoreboard_height = 25
+margin = 80
+window_size = (width + 2 * margin, height + scoreboard_height + 2 * margin)
+screen = pygame.display.set_mode(window_size)
+pygame.display.set_caption('Match IT')
+
+# image de fond
+background = pygame.image.load('ap4.jpg')
+background = pygame.transform.scale(background, window_size)
+
+# liste de couleurs 
+candy_colors = ['blue', 'green', 'orange', 'pink', 'purple', 'red', 'aqua', 'yellow']
+
+# dimensions des icônes
+candy_width = 40
+candy_height = 40
+candy_size = (candy_width, candy_height)
+
+# couleur de la grille
+grid_color = (140, 130, 200)
+border_radius = 10
+
+
+class Candy:
+    def __init__(self, row_num, col_num):
+        self.row_num = row_num
+        self.col_num = col_num
+        self.color = random.choice(candy_colors)
+        image_name = f'ordinateur-3d{self.color}.png'  
+        self.image = pygame.image.load(image_name)
+        self.image = pygame.transform.smoothscale(self.image, candy_size)
+        self.rect = self.image.get_rect()
+        self.rect.left = col_num * candy_width + margin
+        self.rect.top = row_num * candy_height + margin
+
+    def draw(self):
+        pygame.draw.rect(screen, (255, 255, 255), self.rect, border_radius=border_radius)
+        screen.blit(self.image, self.rect)
+
+    def snap(self):
+        self.rect.top = self.row_num * candy_height + margin
+
+    def snap_row(self):
+        self.rect.top = self.row_num * candy_height + margin
+
+    def snap_col(self):
+        self.rect.left = self.col_num * candy_width + margin
+
+
+# grille du jeu
+board = []
+for row_num in range(height // candy_height):
+    board.append([])
+    for col_num in range(width // candy_width):
+        candy = Candy(row_num, col_num)
+        board[row_num].append(candy)
+
+
+def draw():
+    screen.blit(background, (0, 0))  
+
+    # creation du rectangle pournla grille
+    grid_rect = pygame.Rect(margin, margin, width, height)
+    pygame.draw.rect(screen, grid_color, grid_rect, border_radius=border_radius)
+
+    # lignes de la grille
+    for row in range(len(board) + 1):
+        pygame.draw.line(screen, grid_color, (margin, row * candy_height + margin),
+                         (width + margin, row * candy_height + margin))
+    for col in range(len(board[0]) + 1):
+        pygame.draw.line(screen, grid_color, (col * candy_width + margin, margin),
+                         (col * candy_width + margin, height + margin))
+
+    # icônes
+    for row in board:
+        for candy in row:
+            candy.draw()
+
+    # score et mouvements
+    font = pygame.font.SysFont('arial', 28, bold=True)
+    score_text = font.render(f'Score: {score}', 1, (1, 30, 255))
+    score_text_rect = score_text.get_rect(center=(width / 4 + margin, height + scoreboard_height / 2 + margin))
+    screen.blit(score_text, score_text_rect)
+
+    moves_text = font.render(f'Moves: {moves}', 1, (1, 30, 255))
+    moves_text_rect = moves_text.get_rect(center=(width * 3 / 4 + margin, height + scoreboard_height / 2 + margin))
+    screen.blit(moves_text, moves_text_rect)
+
+    # boutons des reinitialisation et de sortie
+    draw_button(reset_button, 'Reset')
+    draw_button(quit_button, 'Quit')
+
+
+def draw_button(button, text):
+    pygame.draw.rect(screen, (1, 30, 255), button)
+    button_font = pygame.font.SysFont('arial', 25)
+    text_surface = button_font.render(text, True, (255, 255, 255))
+    screen.blit(text_surface, (button.x + button.width / 2 - text_surface.get_width() / 2,
+                               button.y + button.height / 2 - text_surface.get_height() / 2))
+
+#echanges d'icônes
+def swap(candy1, candy2):
+    temp_row = candy1.row_num
+    temp_col = candy1.col_num
+    candy1.row_num = candy2.row_num
+    candy1.col_num = candy2.col_num
+    candy2.row_num = temp_row
+    candy2.col_num = temp_col
+    board[candy1.row_num][candy1.col_num] = candy1
+    board[candy2.row_num][candy2.col_num] = candy2
+    candy1.snap()
+    candy2.snap()
+
+#recherche de correspondance
+def find_matches(candy, matches):
+    matches.add(candy)
+    if candy.row_num > 0:
+        neighbor = board[candy.row_num - 1][candy.col_num]
+        if candy.color == neighbor.color and neighbor not in matches:
+            matches.update(find_matches(neighbor, matches))
+    if candy.row_num < height // candy_height - 1:
+        neighbor = board[candy.row_num + 1][candy.col_num]
+        if candy.color == neighbor.color and neighbor not in matches:
+            matches.update(find_matches(neighbor, matches))
+    if candy.col_num > 0:
+        neighbor = board[candy.row_num][candy.col_num - 1]
+        if candy.color == neighbor.color and neighbor not in matches:
+            matches.update(find_matches(neighbor, matches))
+    if candy.col_num < width // candy_width - 1:
+        neighbor = board[candy.row_num][candy.col_num + 1]
+        if candy.color == neighbor.color and neighbor not in matches:
+            matches.update(find_matches(neighbor, matches))
+    return matches
+
+
+def match_three(candy):
+    matches = find_matches(candy, set())
+    if len(matches) >= 3:
+        return matches
+    else:
+        return set()
+    
+def reset_game():
+    global board, score, moves
+    board = []
+    for row_num in range(height // candy_height):
+        board.append([])
+        for col_num in range(width // candy_width):
+            candy = Candy(row_num, col_num)
+            board[row_num].append(candy)
+    score = 0
+    moves = 0
+
+
+def quit_game():
+    pygame.quit()
+    quit()
+
+
+
+# initialisation des boutons
+reset_button = pygame.Rect(width / 2 - 200, height + margin, 60, 20)
+quit_button = pygame.Rect(width / 2 + 300, height + margin, 60, 20)
+
+running = True
+clock = pygame.time.Clock()
+clicked_candy = None
+swapped_candy = None
+click_x = None
+click_y = None
+score = 0
+moves = 0
+
+while running:
+    matches = set()
+    for event in pygame.event.get():
+        if event.type == QUIT:
+            running = False
+        elif event.type == MOUSEBUTTONDOWN:
+            if reset_button.collidepoint(event.pos):
+                reset_game()
+            elif quit_button.collidepoint(event.pos):
+                quit_game()
+            else:
+                for row in board:
+                    for candy in row:
+                        if candy.rect.collidepoint(event.pos):
+                            clicked_candy = candy
+                            click_x = event.pos[0]
+                            click_y = event.pos[1]
+        elif event.type == MOUSEMOTION and clicked_candy:
+            distance_x = abs(click_x - event.pos[0])
+            distance_y = abs(click_y - event.pos[1])
+            if swapped_candy is not None:
+                swapped_candy.snap()
+            if distance_x > distance_y and click_x > event.pos[0]:
+                direction = 'left'
+            elif distance_x > distance_y and click_x < event.pos[0]:
+                direction = 'right'
+            elif distance_y > distance_x and click_y > event.pos[1]:
+                direction = 'up'
+            else:
+                direction = 'down'
+            if direction in ['left', 'right']:
+                clicked_candy.snap_row()
+            else:
+                clicked_candy.snap_col()
+            if direction == 'left' and clicked_candy.col_num > 0:
+                swapped_candy = board[clicked_candy.row_num][clicked_candy.col_num - 1]
+                clicked_candy.rect.left = clicked_candy.col_num * candy_width + margin - distance_x
+                swapped_candy.rect.left = swapped_candy.col_num * candy_width + margin + distance_x
+                if clicked_candy.rect.left <= swapped_candy.col_num * candy_width + margin + candy_width / 4:
+                    swap(clicked_candy, swapped_candy)
+                    matches.update(match_three(clicked_candy))
+                    matches.update(match_three(swapped_candy))
+                    moves += 1
+                    clicked_candy = None
+                    swapped_candy = None
+            elif direction == 'right' and clicked_candy.col_num < width // candy_width - 1:
+                swapped_candy = board[clicked_candy.row_num][clicked_candy.col_num + 1]
+                clicked_candy.rect.left = clicked_candy.col_num * candy_width + margin + distance_x
+                swapped_candy.rect.left = swapped_candy.col_num * candy_width + margin - distance_x
+                if clicked_candy.rect.left >= swapped_candy.col_num * candy_width + margin - candy_width / 4:
+                    swap(clicked_candy, swapped_candy)
+                    matches.update(match_three(clicked_candy))
+                    matches.update(match_three(swapped_candy))
+                    moves += 1
+                    clicked_candy = None
+                    swapped_candy = None
+            elif direction == 'up' and clicked_candy.row_num > 0:
+                swapped_candy = board[clicked_candy.row_num - 1][clicked_candy.col_num]
+                clicked_candy.rect.top = clicked_candy.row_num * candy_height + margin - distance_y
+                swapped_candy.rect.top = swapped_candy.row_num * candy_height + margin + distance_y
+                if clicked_candy.rect.top <= swapped_candy.row_num * candy_height + margin + candy_height / 4:
+                    swap(clicked_candy, swapped_candy)
+                    matches.update(match_three(clicked_candy))
+                    matches.update(match_three(swapped_candy))
+                    moves += 1
+                    clicked_candy = None
+                    swapped_candy = None
+            elif direction == 'down' and clicked_candy.row_num < height // candy_height - 1:
+                swapped_candy = board[clicked_candy.row_num + 1][clicked_candy.col_num]
+                clicked_candy.rect.top = clicked_candy.row_num * candy_height + margin + distance_y
+                swapped_candy.rect.top = swapped_candy.row_num * candy_height + margin - distance_y
+                if clicked_candy.rect.top >= swapped_candy.row_num * candy_height + margin - candy_height / 4:
+                    swap(clicked_candy, swapped_candy)
+                    matches.update(match_three(clicked_candy))
+                    matches.update(match_three(swapped_candy))
+                    moves += 1
+                    clicked_candy = None
+                    swapped_candy = None
+        elif event.type == MOUSEBUTTONUP and clicked_candy:
+            clicked_candy.snap()
+            clicked_candy = None
+            if swapped_candy is not None:
+                swapped_candy.snap()
+                swapped_candy = None
+
+    draw()
+    pygame.display.update()
+    if len(matches) >= 3:
+        if len(matches) == 3:
+            score += 10
+        elif len(matches) == 4:
+            score += 20
+        elif len(matches) == 5:
+            score += 50
+        elif len(matches) > 5:
+            score += 100
+        while len(matches) > 0:
+            clock.tick(100)
+            for candy in matches:
+                new_width = candy.image.get_width() - 1
+                new_height = candy.image.get_height() - 1
+                new_size = (new_width, new_height)
+                candy.image = pygame.transform.smoothscale(candy.image, new_size)
+                candy.rect.left = candy.col_num * candy_width + margin + (candy_width - new_width) / 2
+                candy.rect.top = candy.row_num * candy_height + margin + (candy_height - new_height) / 2
+            for row_num in range(len(board)):
+                for col_num in range(len(board[row_num])):
+                    candy = board[row_num][col_num]
+                    if candy.image.get_width() <= 0 or candy.image.get_height() <= 0:
+                        matches.remove(candy)
+                        board[row_num][col_num] = Candy(row_num, col_num)
+            draw()
+            pygame.display.update()
+
+pygame.quit()
